@@ -3,7 +3,7 @@ const Datastore = require('nedb-promises');
 const cron = require('node-cron');
 const express = require('express');
 
-// Сервери Express
+// Сервери Express барои Render
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -15,13 +15,13 @@ app.listen(PORT, () => {
   console.log(`Сервер дар порти ${PORT} оғоз шуд`);
 });
 
-// ТОКЕН ва ID-и худро дар ин ҷо гузоред:
+// Гирифтани Токен ва ID аз Environment Variables (Танзимоти Render)
 const BOT_TOKEN = '8827043337:AAGzxN1im3CTEtsI4i3vpIuwVtdLfvPNsd0';
-const ADMIN_ID = 8928612724; // ID-и худро бе нохунак гузоред
+const ADMIN_ID = 8928612724;
 
 const bot = new Telegraf(BOT_TOKEN);
 
-// Сохтани базаҳои маълумоти JSON (бе SQLite ва бе C++)
+// Базаҳои маълумот
 const usersDb = Datastore.create({ filename: './users.db', autoload: true });
 const tasksDb = Datastore.create({ filename: './tasks.db', autoload: true });
 
@@ -80,8 +80,17 @@ bot.on('text', async (ctx, next) => {
     }
 
     try {
-      await tasksDb.insert({ title: state.title, task_date: dateText });
-      ctx.reply(`✅ Супориш илова шуд!\n\n📌 **Мавзӯъ:** ${state.title}\n📅 **Муҳлат:** ${dateText}`);
+      // Интихоби ID-и пайдарпайи рақамӣ (1, 2, 3...)
+      const allTasks = await tasksDb.find({});
+      const maxId = allTasks.reduce((max, task) => {
+        const idNum = Number(task._id);
+        return !isNaN(idNum) && idNum > max ? idNum : max;
+      }, 0);
+      
+      const newId = (maxId + 1).toString();
+
+      await tasksDb.insert({ _id: newId, title: state.title, task_date: dateText });
+      ctx.reply(`✅ Супориш илова шуд!\n\n🆔 **ID:** \`${newId}\`\n📌 **Мавзӯъ:** ${state.title}\n📅 **Муҳлат:** ${dateText}`, { parse_mode: 'Markdown' });
     } catch (err) {
       ctx.reply('Хатогӣ дар нигоҳдорӣ.');
     }
@@ -97,23 +106,23 @@ bot.command('list', async (ctx) => {
   if (tasks.length === 0) return ctx.reply('Ҳоло ҳеҷ супориши фаъол нест.');
 
   let message = '📋 **Рӯйхати супоришҳо:**\n\n';
-  tasks.forEach((row, index) => {
-    message += `🔹 **№ ${index + 1}** | 📅 ${row.task_date}\n📌 ${row.title}\nID: \`${row._id}\`\n\n`;
+  tasks.forEach((row) => {
+    message += `🔹 **ID: \`${row._id}\`** | 📅 ${row.task_date}\n📌 ${row.title}\n\n`;
   });
   ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// Нест кардани супориш бо ID
+// Нест кардани супориш бо ID-и рақамӣ (масалан: /delete 1)
 bot.command('delete', async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔ Танҳо админ.');
   const taskId = ctx.message.text.split(' ')[1];
-  if (!taskId) return ctx.reply('Истифодабарӣ: `/delete ID_СУПОРИШ`', { parse_mode: 'Markdown' });
+  if (!taskId) return ctx.reply('Истифодабарӣ: `/delete 1` (рақами ID-ро нависед)', { parse_mode: 'Markdown' });
 
-  const numRemoved = await tasksDb.remove({ _id: taskId }, {});
+  const numRemoved = await tasksDb.remove({ _id: taskId.trim() }, {});
   if (numRemoved > 0) {
-    ctx.reply(`🗑 Супориш нест карда шуд.`);
+    ctx.reply(`🗑 Супориш бо ID: ${taskId} нест карда шуд.`);
   } else {
-    ctx.reply(`Супориш бо чунин ID ёфт нашуд.`);
+    ctx.reply(`Супориш бо ID: ${taskId} ёфт нашуд.`);
   }
 });
 
