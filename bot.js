@@ -20,9 +20,23 @@ const ADMIN_ID = Number(process.env.ADMIN_ID) || 8928612724;
 
 const bot = new Telegraf(BOT_TOKEN);
 
+// Канали сарпараст
+const SPONSOR_CHANNEL = '@mirzozoda06';
+
 // Базаҳои маълумот
 const usersDb = Datastore.create({ filename: './users.db', autoload: true });
 const tasksDb = Datastore.create({ filename: './tasks.db', autoload: true });
+
+// Функцияи санҷиши аъзогии канал
+async function checkSubscription(userId) {
+  try {
+    const member = await bot.telegram.getChatMember(SPONSOR_CHANNEL, userId);
+    return ['creator', 'administrator', 'member'].includes(member.status);
+  } catch (error) {
+    console.error('Хатогӣ дар санҷиши канал:', error.message);
+    return false;
+  }
+}
 
 // Фармони /start
 bot.start(async (ctx) => {
@@ -30,7 +44,6 @@ bot.start(async (ctx) => {
   
   let user = await usersDb.findOne({ user_id: userId });
   if (!user) {
-    // Ба ҳар як корбари нав вақти пешфарз (09:00) дода мешавад
     await usersDb.insert({ user_id: userId, notify_time: '09:00' });
   }
 
@@ -52,11 +65,43 @@ bot.start(async (ctx) => {
   }
 });
 
-// Кнопкаи интихоби вақт барои корбар
+// Кнопкаи интихоби вақт (Бо санҷиши обуна)
 bot.action('set_time', async (ctx) => {
   await ctx.answerCbQuery();
-  userState[ctx.from.id] = { step: 'WAITING_USER_TIME' };
+  const userId = ctx.from.id;
+
+  const isSubscribed = await checkSubscription(userId);
+  if (!isSubscribed) {
+    const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
+    return ctx.reply(
+      `⚠️ **Барои идома додан ва интихоб кардани вақт, аввал ба канали сарпараст обуна шавед!**\n\n` +
+      `Пас аз обуна шудан, тугмаи «Интихоби вақти огоҳинома»-ро дубора пахш кунед.`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.url('📢 Обуна шудан ба канал', channelLink)],
+          [Markup.button.callback('✅ Санҷидани обуна', 'check_sub')]
+        ])
+      }
+    );
+  }
+
+  userState[userId] = { step: 'WAITING_USER_TIME' };
   ctx.reply('Лутфан вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30 ё 19:00):');
+});
+
+// Кнопкаи санҷиши такрории обуна
+bot.action('check_sub', async (ctx) => {
+  await ctx.answerCbQuery();
+  const userId = ctx.from.id;
+  const isSubscribed = await checkSubscription(userId);
+
+  if (isSubscribed) {
+    userState[userId] = { step: 'WAITING_USER_TIME' };
+    await ctx.reply('✅ Ташаккур барои обуна шудан! Инак, вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30):');
+  } else {
+    await ctx.reply('❌ Шумо ҳанӯз ба канал обуна нашудаед. Лутфан аввал обуна шавед!');
+  }
 });
 
 const userState = {};
@@ -64,7 +109,7 @@ const userState = {};
 // Илова кардани супориш аз тарафи Админ
 bot.command('add', (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
-    return ctx.reply('⛔ Шумо ҳуқуқи илова кардани маълумотро надоред!');
+    return ctx.reply('⛔ ЭЭЭ ЧОКАДЕСТИ!Шумо ҳуқуқи илова кардани маълумотро надоред!');
   }
   userState[ctx.from.id] = { step: 'WAITING_TITLE' };
   ctx.reply('Номи супориш ё мавзӯъро ворид кунед:\n(Масалан: КМД аз фанни Барномасозӣ)');
@@ -76,7 +121,7 @@ bot.on('text', async (ctx, next) => {
 
   const state = userState[userId];
 
-  // Агар корбар вақти худро истода бошад
+  // Агар корбар вақти худро ворид истода бошад
   if (state.step === 'WAITING_USER_TIME') {
     const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
     const timeText = ctx.message.text.trim();
@@ -130,7 +175,7 @@ bot.on('text', async (ctx, next) => {
   }
 });
 
-// Рӯйхати супоришҳо бо рақамҳои пайдарпай (1, 2, 3...)
+// Рӯйхати супоришҳо бо рақамҳои пайдарпай
 bot.command('list', async (ctx) => {
   const today = new Date().toISOString().split('T')[0];
   const tasks = await tasksDb.find({ task_date: { $gte: today } }).sort({ task_date: 1 });
@@ -151,7 +196,7 @@ bot.command('list', async (ctx) => {
 
 // Нест кардани супориш аз рӯи рақам
 bot.command('delete', async (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔ Танҳо админ ҳуқуқи нест кардан дорад.');
+  if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔  ЭЭЭ ТУ ЧИ КОРАИ!!! Танҳо админ ҳуқуқи нест кардан дорад.');
   
   const args = ctx.message.text.split(' ');
   const indexToDelete = parseInt(args[1]);
@@ -173,7 +218,7 @@ bot.command('delete', async (ctx) => {
   ctx.reply(`🗑 Супориши № ${indexToDelete} ("${taskToRemove.title}") нест карда шуд.`);
 });
 
-// Cron барои санҷиши ҳар дақиқа ва фиристодани огоҳинома мувофиқи вақти ҳар як корбар
+// Cron барои фиристодани огоҳиномаҳо дар вақти муайяни корбарон
 cron.schedule('* * * * *', async () => {
   const now = new Date();
   const hours = String(now.getHours()).padStart(2, '0');
@@ -200,7 +245,6 @@ cron.schedule('* * * * *', async () => {
 
 bot.launch().then(async () => {
   console.log('Бот бомуваффақият фаъол шуд!');
-  // Илова кардани тугмаи меню барои осонии корбарон
   await bot.telegram.setMyCommands([
     { command: 'list', description: '📋 Рӯйхати супоришҳо' },
     { command: 'start', description: '🔄 Оғози бот / Танзими вақт' }
