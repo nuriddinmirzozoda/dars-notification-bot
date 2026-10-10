@@ -40,73 +40,79 @@ async function checkSubscription(userId) {
 
 // Фармони /start
 bot.start(async (ctx) => {
-  const userId = ctx.from.id;
-  
-  let user = await usersDb.findOne({ user_id: userId });
-  if (!user) {
-    await usersDb.insert({ user_id: userId, notify_time: '09:00' });
-  }
+  try {
+    const userId = ctx.from.id;
+    
+    let user = await usersDb.findOne({ user_id: userId });
+    if (!user) {
+      await usersDb.insert({ user_id: userId, notify_time: '09:00' });
+    }
 
-  if (userId === ADMIN_ID) {
-    ctx.reply(
-      `Ассалому алайкум, Админ!\n\n` +
-      `/add - Илова кардани супориш\n` +
-      `/delete [рақам] - Нест кардани супориш (Масалан: /delete 1)\n` +
-      `/list - Рӯйхати супоришҳо`
-    );
-  } else {
-    ctx.reply(
-      `Ассалому алайкум! Шумо ба боти огоҳиномаҳои таҳсил пайваст шудед.\n\n` +
-      `Шумо метавонед вақти расидани огоҳиномаро бо тугмаи зер интихоб кунед:`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback('⏰ Интихоби вақти огоҳинома', 'set_time')]
-      ])
-    );
+    if (userId === ADMIN_ID) {
+      ctx.reply(
+        `Ассалому алайкум, Админ!\n\n` +
+        `/add - Илова кардани супориш\n` +
+        `/delete [рақам] - Нест кардани супориш (Масалан: /delete 1)\n` +
+        `/list - Рӯйхати супоришҳо`
+      );
+    } else {
+      ctx.reply(
+        `Ассалому алайкум! Шумо ба боти огоҳиномаҳои таҳсил пайваст шудед.\n\n` +
+        `Шумо метавонед вақти расидани огоҳиномаро бо тугмаи зер интихоб кунед:`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('⏰ Интихоби вақти огоҳинома', 'set_time')]
+        ])
+      );
+    }
+  } catch (err) {
+    console.error(err);
   }
 });
 
 // Кнопкаи интихоби вақт (Бо санҷиши обуна)
 bot.action('set_time', async (ctx) => {
   try {
-    await ctx.answerCbQuery('Санҷида истодааст...');
-  } catch (e) {}
+    await ctx.answerCbQuery().catch(() => {});
+    const userId = ctx.from.id;
 
-  const userId = ctx.from.id;
-  const isSubscribed = await checkSubscription(userId);
+    const isSubscribed = await checkSubscription(userId);
+    if (!isSubscribed) {
+      const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
+      return ctx.reply(
+        `⚠️ **Барои идома додан ва интихоб кардани вақт, аввал ба канали сарпараст обуна шавед!**\n\n` +
+        `Пас аз обуна шудан, тугмаи «Санҷидани обуна»-ро пахш кунед.`,
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+            [Markup.button.url('📢 Обуна шудан ба канал', channelLink)],
+            [Markup.button.callback('✅ Санҷидани обуна', 'check_sub')]
+          ])
+        }
+      );
+    }
 
-  if (!isSubscribed) {
-    const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
-    return ctx.reply(
-      `⚠️ **Барои идома додан ва интихоб кардани вақт, аввал ба канали сарпараст обуна шавед!**\n\n` +
-      `Пас аз обуна шудан, тугмаи «Санҷидани обуна»-ро пахш кунед.`,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.url('📢 Обуна шудан ба канал', channelLink)],
-          [Markup.button.callback('✅ Санҷидани обуна', 'check_sub')]
-        ])
-      }
-    );
+    userState[userId] = { step: 'WAITING_USER_TIME' };
+    ctx.reply('Лутфан вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30 ё 19:00):');
+  } catch (err) {
+    console.error(err);
   }
-
-  userState[userId] = { step: 'WAITING_USER_TIME' };
-  ctx.reply('Лутфан вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30 ё 19:00):');
 });
 
 // Кнопкаи санҷиши такрории обуна
 bot.action('check_sub', async (ctx) => {
   try {
-    await ctx.answerCbQuery('Санҷиш...');
-  } catch (e) {}
+    await ctx.answerCbQuery().catch(() => {});
+    const userId = ctx.from.id;
+    const isSubscribed = await checkSubscription(userId);
 
-  const userId = ctx.from.id;
-  const isSubscribed = await checkSubscription(userId);
-
-  if (isSubscribed) {
-    userState[userId] = { step: 'WAITING_USER_TIME' };
-    await ctx.reply('✅ Ташаккур барои обуна шудан! Инак, вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30):');
-  } else {
-    await ctx.reply('❌ Шумо ҳанӯз ба канал обуна нашудаед. Лутфан аввал ба канал обуна шавед!');
+    if (isSubscribed) {
+      userState[userId] = { step: 'WAITING_USER_TIME' };
+      await ctx.reply('✅ Ташаккур барои обуна шудан! Инак, вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30):');
+    } else {
+      await ctx.reply('❌ Шумо ҳанӯз ба канал обуна нашудаед. Лутфан аввал ба канал обуна шавед!');
+    }
+  } catch (err) {
+    console.error(err);
   }
 });
 
@@ -122,142 +128,167 @@ bot.command('add', (ctx) => {
 });
 
 bot.on('text', async (ctx, next) => {
-  const userId = ctx.from.id;
-  if (!userState[userId]) return next();
+  try {
+    const userId = ctx.from.id;
+    if (!userState[userId]) return next();
 
-  const state = userState[userId];
+    const state = userState[userId];
 
-  if (state.step === 'WAITING_USER_TIME') {
-    const isSubscribed = await checkSubscription(userId);
-    if (!isSubscribed) {
+    if (state.step === 'WAITING_USER_TIME') {
+      const isSubscribed = await checkSubscription(userId);
+      if (!isSubscribed) {
+        delete userState[userId];
+        const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
+        return ctx.reply(
+          `⚠️ Интихоби вақт бекор шуд! Шумо ҳанӯз ба канали сарпараст обуна нашудаед.\n\n` +
+          `Аввал ба канал обуна шавед, сипас дубора кӯшиш кунед:`,
+          Markup.inlineKeyboard([
+            [Markup.button.url('📢 Обуна шудан ба канал', channelLink)]
+          ])
+        );
+      }
+
+      const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+      const timeText = ctx.message.text.trim();
+
+      if (!timeRegex.test(timeText)) {
+        return ctx.reply('Формати вақт нодуруст аст! Лутфан бо формати HH:MM ворид кунед (масалан: 09:30):');
+      }
+
+      await usersDb.update({ user_id: userId }, { $set: { notify_time: timeText } });
       delete userState[userId];
-      const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
-      return ctx.reply(
-        `⚠️ Интихоби вақт бекор шуд! Шумо ҳанӯз ба канали сарпараст обуна нашудаед.\n\n` +
-        `Аввал ба канал обуна шавед, сипас дубора кӯшиш кунед:`,
-        Markup.inlineKeyboard([
-          [Markup.button.url('📢 Обуна шудан ба канал', channelLink)]
-        ])
-      );
+      return ctx.reply(`✅ Вақти огоҳиномаҳои шумо ба соати ${timeText} иваз карда шуд!`);
     }
 
-    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-    const timeText = ctx.message.text.trim();
+    if (userId !== ADMIN_ID) return next();
 
-    if (!timeRegex.test(timeText)) {
-      return ctx.reply('Формати вақт нодуруст аст! Лутфан бо формати HH:MM ворид кунед (масалан: 09:30):');
+    if (state.step === 'WAITING_TITLE') {
+      state.title = ctx.message.text;
+      state.step = 'WAITING_DATE';
+      ctx.reply('Таърихро бо формати YYYY-MM-DD ворид кунед (масалан: 2026-10-15):');
+    } 
+    else if (state.step === 'WAITING_DATE') {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      const dateText = ctx.message.text.trim();
+
+      if (!dateRegex.test(dateText)) {
+        return ctx.reply('Формат нодуруст аст! Масалан: 2026-10-15');
+      }
+
+      try {
+        const taskDateObj = new Date(dateText);
+        taskDateObj.setDate(taskDateObj.getDate() - 1);
+        const notifyDateStr = taskDateObj.toISOString().split('T')[0];
+
+        await tasksDb.insert({ 
+          title: state.title, 
+          task_date: dateText,
+          notify_date: notifyDateStr
+        });
+
+        ctx.reply(
+          `✅ Супориш бомуваффақият илова шуд!\n\n` +
+          `📌 **Мавзӯъ:** ${state.title}\n` +
+          `📅 **Муҳлат:** ${dateText}\n` +
+          `(Огоҳинома як рӯз пеш ба ҳар кас дар вақти интихобкардааш мерасад)`
+        );
+      } catch (err) {
+        ctx.reply('Хатогӣ дар нигоҳдории маълумот.');
+      }
+      delete userState[userId];
     }
-
-    await usersDb.update({ user_id: userId }, { $set: { notify_time: timeText } });
-    delete userState[userId];
-    return ctx.reply(`✅ Вақти огоҳиномаҳои шумо ба соати ${timeText} иваз карда шуд!`);
-  }
-
-  if (userId !== ADMIN_ID) return next();
-
-  if (state.step === 'WAITING_TITLE') {
-    state.title = ctx.message.text;
-    state.step = 'WAITING_DATE';
-    ctx.reply('Таърихро бо формати YYYY-MM-DD ворид кунед (масалан: 2026-10-15):');
-  } 
-  else if (state.step === 'WAITING_DATE') {
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    const dateText = ctx.message.text.trim();
-
-    if (!dateRegex.test(dateText)) {
-      return ctx.reply('Формат нодуруст аст! Масалан: 2026-10-15');
-    }
-
-    try {
-      const taskDateObj = new Date(dateText);
-      taskDateObj.setDate(taskDateObj.getDate() - 1);
-      const notifyDateStr = taskDateObj.toISOString().split('T')[0];
-
-      await tasksDb.insert({ 
-        title: state.title, 
-        task_date: dateText,
-        notify_date: notifyDateStr
-      });
-
-      ctx.reply(
-        `✅ Супориш бомуваффақият илова шуд!\n\n` +
-        `📌 **Мавзӯъ:** ${state.title}\n` +
-        `📅 **Муҳлат:** ${dateText}\n` +
-        `(Огоҳинома як рӯз пеш ба ҳар кас дар вақти интихобкардааш мерасад)`
-      );
-    } catch (err) {
-      ctx.reply('Хатогӣ дар нигоҳдории маълумот.');
-    }
-    delete userState[userId];
+  } catch (err) {
+    console.error(err);
   }
 });
 
 // Рӯйхати супоришҳо бо рақамҳои пайдарпай
 bot.command('list', async (ctx) => {
-  const today = new Date().toISOString().split('T')[0];
-  const tasks = await tasksDb.find({ task_date: { $gte: today } }).sort({ task_date: 1 });
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const tasks = await tasksDb.find({ task_date: { $gte: today } }).sort({ task_date: 1 });
 
-  if (tasks.length === 0) return ctx.reply('Ҳоло ҳеҷ супориши фаъол нест.');
+    if (tasks.length === 0) return ctx.reply('Ҳоло ҳеҷ супориши фаъол нест.');
 
-  let message = '📋 **Рӯйхати супоришҳо:**\n\n';
-  tasks.forEach((row, index) => {
-    message += `🔹 **Рақам: ${index + 1}**\n📌 Мавзӯъ: ${row.title}\n📅 Муҳлат: ${row.task_date}\n\n`;
-  });
+    let message = '📋 **Рӯйхати супоришҳо:**\n\n';
+    tasks.forEach((row, index) => {
+      message += `🔹 **Рақам: ${index + 1}**\n📌 Мавзӯъ: ${row.title}\n📅 Муҳлат: ${row.task_date}\n\n`;
+    });
 
-  if (ctx.from.id !== ADMIN_ID) {
-    message += `⚙️ Барои тағйир додани вақти огоҳиномаҳои худ /start -ро пахш кунед.`;
+    if (ctx.from.id !== ADMIN_ID) {
+      message += `⚙️ Барои тағйир додани вақти огоҳиномаҳои худ /start -ро пахш кунед.`;
+    }
+
+    ctx.reply(message, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.error(err);
   }
-
-  ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
 // Нест кардани супориш аз рӯи рақам
 bot.command('delete', async (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔ Танҳо админ ҳуқуқи нест кардан дорад.');
-  
-  const args = ctx.message.text.split(' ');
-  const indexToDelete = parseInt(args[1]);
+  try {
+    if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔ Танҳо админ ҳуқуқи нест кардан дорад.');
+    
+    const args = ctx.message.text.split(' ');
+    const indexToDelete = parseInt(args[1]);
 
-  if (isNaN(indexToDelete)) {
-    return ctx.reply('Истифодабарӣ нодуруст аст. Масалан: `/delete 1`', { parse_mode: 'Markdown' });
+    if (isNaN(indexToDelete)) {
+      return ctx.reply('Истифодабарӣ нодуруст аст. Масалан: `/delete 1`', { parse_mode: 'Markdown' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const tasks = await tasksDb.find({ task_date: { $gte: today } }).sort({ task_date: 1 });
+
+    if (indexToDelete < 1 || indexToDelete > tasks.length) {
+      return ctx.reply('❌ Супориш бо чунин рақам ёфт нашуд. Аввал `/list`-ро санҷед.');
+    }
+
+    const taskToRemove = tasks[indexToDelete - 1];
+    await tasksDb.remove({ _id: taskToRemove._id }, {});
+    
+    ctx.reply(`🗑 Супориши № ${indexToDelete} ("${taskToRemove.title}") нест карда шуд.`);
+  } catch (err) {
+    console.error(err);
   }
-
-  const today = new Date().toISOString().split('T')[0];
-  const tasks = await tasksDb.find({ task_date: { $gte: today } }).sort({ task_date: 1 });
-
-  if (indexToDelete < 1 || indexToDelete > tasks.length) {
-    return ctx.reply('❌ Супориш бо чунин рақам ёфт нашуд. Аввал `/list`-ро санҷед.');
-  }
-
-  const taskToRemove = tasks[indexToDelete - 1];
-  await tasksDb.remove({ _id: taskToRemove._id }, {});
-  
-  ctx.reply(`🗑 Супориши № ${indexToDelete} ("${taskToRemove.title}") нест карда шуд.`);
 });
 
-// Cron барои фиристодани огоҳиномаҳо дар вақти муайяни корбарон
+// Cron барои фиристодани огоҳиномаҳо
 cron.schedule('* * * * *', async () => {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const currentTime = `${hours}:${minutes}`;
-  const currentDate = now.toISOString().split('T')[0];
+  try {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${hours}:${minutes}`;
+    const currentDate = now.toISOString().split('T')[0];
 
-  const tasks = await tasksDb.find({ notify_date: currentDate });
-  if (tasks.length === 0) return;
+    const tasks = await tasksDb.find({ notify_date: currentDate });
+    if (tasks.length === 0) return;
 
-  const usersToNotify = await usersDb.find({ notify_time: currentTime });
-  if (usersToNotify.length === 0) return;
+    const usersToNotify = await usersDb.find({ notify_time: currentTime });
+    if (usersToNotify.length === 0) return;
 
-  let notificationText = `⏰ **ОГОҲИНОМА! ФАРДО МУҲЛАТИ СУПОРИДАН АСТ:**\n\n`;
-  tasks.forEach((t) => {
-    notificationText += `📌 ${t.title}\n📅 Муҳлат: ${t.task_date}\n\n`;
-  });
+    let notificationText = `⏰ **ОГОҲИНОМА! ФАРДО МУҲЛАТИ СУПОРИДАН АСТ:**\n\n`;
+    tasks.forEach((t) => {
+      notificationText += `📌 ${t.title}\n📅 Муҳлат: ${t.task_date}\n\n`;
+    });
 
-  usersToNotify.forEach((u) => {
-    bot.telegram.sendMessage(u.user_id, notificationText, { parse_mode: 'Markdown' })
-      .catch((e) => console.error(e.message));
-  });
+    usersToNotify.forEach((u) => {
+      bot.telegram.sendMessage(u.user_id, notificationText, { parse_mode: 'Markdown' })
+        .catch((e) => console.error(e.message));
+    });
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// Муҳофизат аз хомӯшшавии пурраи сервер дар ҳолати хатогӣ
+process.on('uncaughtException', (err) => {
+  console.error('Хатогии ногаҳонӣ:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Хатогӣ дар Promise:', reason);
 });
 
 bot.launch().then(async () => {
@@ -265,7 +296,7 @@ bot.launch().then(async () => {
   await bot.telegram.setMyCommands([
     { command: 'list', description: '📋 Рӯйхати супоришҳо' },
     { command: 'start', description: '🔄 Оғози бот / Танзими вақт' }
-  ]);
+  ]).catch(() => {});
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
