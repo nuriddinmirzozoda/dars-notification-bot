@@ -67,15 +67,18 @@ bot.start(async (ctx) => {
 
 // Кнопкаи интихоби вақт (Бо санҷиши обуна)
 bot.action('set_time', async (ctx) => {
-  await ctx.answerCbQuery();
-  const userId = ctx.from.id;
+  try {
+    await ctx.answerCbQuery('Санҷида истодааст...');
+  } catch (e) {}
 
+  const userId = ctx.from.id;
   const isSubscribed = await checkSubscription(userId);
+
   if (!isSubscribed) {
     const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
     return ctx.reply(
       `⚠️ **Барои идома додан ва интихоб кардани вақт, аввал ба канали сарпараст обуна шавед!**\n\n` +
-      `Пас аз обуна шудан, тугмаи «Интихоби вақти огоҳинома»-ро дар менюи асосӣ дубора пахш кунед.`,
+      `Пас аз обуна шудан, тугмаи «Санҷидани обуна»-ро пахш кунед.`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -92,7 +95,10 @@ bot.action('set_time', async (ctx) => {
 
 // Кнопкаи санҷиши такрории обуна
 bot.action('check_sub', async (ctx) => {
-  await ctx.answerCbQuery();
+  try {
+    await ctx.answerCbQuery('Санҷиш...');
+  } catch (e) {}
+
   const userId = ctx.from.id;
   const isSubscribed = await checkSubscription(userId);
 
@@ -109,7 +115,7 @@ const userState = {};
 // Илова кардани супориш аз тарафи Админ
 bot.command('add', (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
-    return ctx.reply('⛔ ЭЭЭ ЧОКАДЕСТИ! Шумо ҳуқуқи илова кардани маълумотро надоред!');
+    return ctx.reply('⛔ Шумо ҳуқуқи илова кардани маълумотро надоред!');
   }
   userState[ctx.from.id] = { step: 'WAITING_TITLE' };
   ctx.reply('Номи супориш ё мавзӯъро ворид кунед:\n(Масалан: КМД аз фанни Барномасозӣ)');
@@ -121,7 +127,6 @@ bot.on('text', async (ctx, next) => {
 
   const state = userState[userId];
 
-  // Агар корбар дар ҳоти интихоби вақт бошад, пеш аз ҳама санҷиши обуна мекунем
   if (state.step === 'WAITING_USER_TIME') {
     const isSubscribed = await checkSubscription(userId);
     if (!isSubscribed) {
@@ -148,7 +153,6 @@ bot.on('text', async (ctx, next) => {
     return ctx.reply(`✅ Вақти огоҳиномаҳои шумо ба соати ${timeText} иваз карда шуд!`);
   }
 
-  // Қадамҳои админ барои иловаи супориш
   if (userId !== ADMIN_ID) return next();
 
   if (state.step === 'WAITING_TITLE') {
