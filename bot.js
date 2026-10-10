@@ -75,7 +75,7 @@ bot.action('set_time', async (ctx) => {
     const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
     return ctx.reply(
       `⚠️ **Барои идома додан ва интихоб кардани вақт, аввал ба канали сарпараст обуна шавед!**\n\n` +
-      `Пас аз обуна шудан, тугмаи «Интихоби вақти огоҳинома»-ро дубора пахш кунед.`,
+      `Пас аз обуна шудан, тугмаи «Интихоби вақти огоҳинома»-ро дар менюи асосӣ дубора пахш кунед.`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -100,7 +100,7 @@ bot.action('check_sub', async (ctx) => {
     userState[userId] = { step: 'WAITING_USER_TIME' };
     await ctx.reply('✅ Ташаккур барои обуна шудан! Инак, вақти дилхоҳи худро бо формати HH:MM ворид кунед (масалан: 08:30):');
   } else {
-    await ctx.reply('❌ Шумо ҳанӯз ба канал обуна нашудаед. Лутфан аввал обуна шавед!');
+    await ctx.reply('❌ Шумо ҳанӯз ба канал обуна нашудаед. Лутфан аввал ба канал обуна шавед!');
   }
 });
 
@@ -109,7 +109,7 @@ const userState = {};
 // Илова кардани супориш аз тарафи Админ
 bot.command('add', (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
-    return ctx.reply('⛔ ЭЭЭ ЧОКАДЕСТИ!Шумо ҳуқуқи илова кардани маълумотро надоред!');
+    return ctx.reply('⛔ ЭЭЭ ЧОКАДЕСТИ! Шумо ҳуқуқи илова кардани маълумотро надоред!');
   }
   userState[ctx.from.id] = { step: 'WAITING_TITLE' };
   ctx.reply('Номи супориш ё мавзӯъро ворид кунед:\n(Масалан: КМД аз фанни Барномасозӣ)');
@@ -121,8 +121,21 @@ bot.on('text', async (ctx, next) => {
 
   const state = userState[userId];
 
-  // Агар корбар вақти худро ворид истода бошад
+  // Агар корбар дар ҳоти интихоби вақт бошад, пеш аз ҳама санҷиши обуна мекунем
   if (state.step === 'WAITING_USER_TIME') {
+    const isSubscribed = await checkSubscription(userId);
+    if (!isSubscribed) {
+      delete userState[userId];
+      const channelLink = `https://t.me/${SPONSOR_CHANNEL.replace('@', '')}`;
+      return ctx.reply(
+        `⚠️ Интихоби вақт бекор шуд! Шумо ҳанӯз ба канали сарпараст обуна нашудаед.\n\n` +
+        `Аввал ба канал обуна шавед, сипас дубора кӯшиш кунед:`,
+        Markup.inlineKeyboard([
+          [Markup.button.url('📢 Обуна шудан ба канал', channelLink)]
+        ])
+      );
+    }
+
     const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
     const timeText = ctx.message.text.trim();
 
@@ -196,7 +209,7 @@ bot.command('list', async (ctx) => {
 
 // Нест кардани супориш аз рӯи рақам
 bot.command('delete', async (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔  ЭЭЭ ТУ ЧИ КОРАИ!!! Танҳо админ ҳуқуқи нест кардан дорад.');
+  if (ctx.from.id !== ADMIN_ID) return ctx.reply('⛔ Танҳо админ ҳуқуқи нест кардан дорад.');
   
   const args = ctx.message.text.split(' ');
   const indexToDelete = parseInt(args[1]);
