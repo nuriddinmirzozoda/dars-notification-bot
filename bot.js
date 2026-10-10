@@ -181,11 +181,9 @@ cron.schedule('* * * * *', async () => {
   const currentTime = `${hours}:${minutes}`;
   const currentDate = now.toISOString().split('T')[0];
 
-  // Супоришҳое ки бояд имрӯз огоҳиномашон равад
   const tasks = await tasksDb.find({ notify_date: currentDate });
   if (tasks.length === 0) return;
 
-  // Корбароне ки вақти интихобкардаашон ба ҳозир баробар аст
   const usersToNotify = await usersDb.find({ notify_time: currentTime });
   if (usersToNotify.length === 0) return;
 
@@ -200,7 +198,14 @@ cron.schedule('* * * * *', async () => {
   });
 });
 
-bot.launch().then(() => console.log('Бот бомуваффақият фаъол шуд!'));
+bot.launch().then(async () => {
+  console.log('Бот бомуваффақият фаъол шуд!');
+  // Илова кардани тугмаи меню барои осонии корбарон
+  await bot.telegram.setMyCommands([
+    { command: 'list', description: '📋 Рӯйхати супоришҳо' },
+    { command: 'start', description: '🔄 Оғози бот / Танзими вақт' }
+  ]);
+});
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
